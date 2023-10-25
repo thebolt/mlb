@@ -39,7 +39,7 @@ void subscription_tree_free(struct subscription_tree *tree);
 int subscription_tree_subscribe(struct subscription_tree *tree, const char *path, uint8_t subscriber);
 int subscription_tree_collect_subscribers(struct subscription_tree *tree, const char *path, uint64_t *subscribers);
 
-int subtree_node_init(struct subtree_node *node, const char *path_component);
+int subtree_node_init(struct subtree_node *node, char *path_component);
 void subtree_node_free(struct subtree_node *node);
 struct subtree_node *subtree_node_find_by_path(struct subtree_node *node, const char *path_component);
 

@@ -43,7 +43,7 @@ TEST(subtree_subscribe1) {
 
   subscribers = 0;
   ASSERT_EQ(subscription_tree_collect_subscribers(&tree, "this/is/a/path", &subscribers), 0);
-  ASSERT_EQ(subscribers, 1<<1);
+  ASSERT_EQ(subscribers, 1 << 1);
 
   subscription_tree_free(&tree);
 }
@@ -65,11 +65,11 @@ TEST(subtree_subscribe_wildcard1) {
 
   subscribers = 0;
   ASSERT_EQ(subscription_tree_collect_subscribers(&tree, "this/is/a/path", &subscribers), 0);
-  ASSERT_EQ(subscribers, 1<<2);
+  ASSERT_EQ(subscribers, 1 << 2);
 
   subscribers = 0;
   ASSERT_EQ(subscription_tree_collect_subscribers(&tree, "this/is/a/path/very/deep/under", &subscribers), 0);
-  ASSERT_EQ(subscribers, 1<<2);
+  ASSERT_EQ(subscribers, 1 << 2);
 
   subscription_tree_free(&tree);
 }
@@ -91,7 +91,7 @@ TEST(subtree_subscribe_wildcard2) {
 
   subscribers = 0;
   ASSERT_EQ(subscription_tree_collect_subscribers(&tree, "this/is/a/path", &subscribers), 0);
-  ASSERT_EQ(subscribers, 1<<3);
+  ASSERT_EQ(subscribers, 1 << 3);
 
   subscribers = 0;
   ASSERT_EQ(subscription_tree_collect_subscribers(&tree, "this/is/a/path/very/deep/under", &subscribers), 0);

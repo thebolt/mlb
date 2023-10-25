@@ -4,8 +4,28 @@
 
 #include <errno.h>
 #include <malloc.h>
-#include <string.h>
 #include <stdbool.h>
+#include <string.h>
+
+static int strcmpdelim(const char *s1, const char *s2, char delim) {
+  const unsigned char *p1 = (const unsigned char *)s1;
+  const unsigned char *p2 = (const unsigned char *)s2;
+  const unsigned char d = (unsigned char)delim;
+
+  while (*p1) {
+    if (*p1 != *p2) {
+      break;
+    }
+    p1++;
+    p2++;
+  }
+
+  if (*p2 == d) {
+    return 0;
+  }
+
+  return (*p1 > *p2) - (*p2 > *p1);
+}
 
 int subscription_tree_init(struct subscription_tree *tree) {
   int rc;
@@ -30,39 +50,40 @@ int subscription_tree_subscribe(struct subscription_tree *tree, const char *path
   /*@TODO remove any leading / */
   /*@TODO ensure # is only at the end */
 
-  char *dup_path = strdup(path);
-  char *saveptr;
-  char *path_token = strtok_r(dup_path, "/", &saveptr);
+  const char *rest_path = path;
+  const char *next_path_part;
 
   struct subtree_node *current_node = &tree->root;
 
-  while (path_token != NULL) {
-    if (strcmp(path_token, "#") == 0) {
+  while (rest_path != NULL && *rest_path != '\0') {
+    next_path_part = strchr(rest_path, '/');
+    if (next_path_part) {
+      next_path_part++;
+    }
+
+    if (strcmpdelim("#", rest_path, '/') == 0) {
       current_node->wildcard_subscribed_mask |= subscriber_mask;
       current_node = NULL;
       break;
     }
 
-    struct subtree_node *child = subtree_node_find_by_path(current_node, path_token);
+    struct subtree_node *child = subtree_node_find_by_path(current_node, rest_path);
     if (!child) {
-      rc = subtree_node_list_add_node(&current_node->children, path_token, &child);
+      rc = subtree_node_list_add_node(&current_node->children, rest_path, &child);
       if (rc != 0) {
-        goto out_free_path;
+        goto out;
       }
     }
 
     current_node = child;
-
-    path_token = strtok_r(NULL, "/", &saveptr);
+    rest_path = next_path_part;
   }
 
   if (current_node) {
     current_node->subscribed_mask |= subscriber_mask;
   }
 
-out_free_path:
-  free(dup_path);
-
+out:
   return rc;
 }
 
@@ -71,43 +92,47 @@ int subscription_tree_collect_subscribers(struct subscription_tree *tree, const 
 
   struct path_save {
     struct subtree_node *node;
-    char *saveptr;
+    const char *saveptr;
   } wildcard_restarts[8];
   uint32_t num_restarts = 0;
   uint64_t submask = 0;
 
   /* @TODO ensure path does not contain any wildcards */
 
-  char *dup_path = strdup(path);
-  char *saveptr;
-  char *path_token = strtok_r(dup_path, "/", &saveptr);
+  const char *rest_path = path;
+  const char *next_path_part;
 
   struct subtree_node *current_node = &tree->root;
 
   while (true) {
-    while (path_token != NULL) {
+    while (rest_path != NULL && *rest_path != '\0') {
+      next_path_part = strchr(rest_path, '/');
+      if (next_path_part) {
+        next_path_part++;
+      }
+
       submask |= current_node->wildcard_subscribed_mask;
 
       struct subtree_node *wildcard_node = subtree_node_find_by_path(current_node, "-");
       if (wildcard_node) {
         if (num_restarts >= 8) {
           rc = -ENOMEM;
-          goto out_free_path;
+          goto out;
         }
 
         wildcard_restarts[num_restarts].node = wildcard_node;
-        wildcard_restarts[num_restarts].saveptr = saveptr;
+        wildcard_restarts[num_restarts].saveptr = next_path_part;
         num_restarts++;
       }
 
-      struct subtree_node *child_node = subtree_node_find_by_path(current_node, path_token);
+      struct subtree_node *child_node = subtree_node_find_by_path(current_node, rest_path);
       if (!child_node) {
         current_node = NULL;
         break;
       }
 
       current_node = child_node;
-      path_token = strtok_r(NULL, "/", &saveptr);
+      rest_path = next_path_part;
     }
 
     if (current_node) {
@@ -120,26 +145,21 @@ int subscription_tree_collect_subscribers(struct subscription_tree *tree, const 
 
     num_restarts--;
     current_node = wildcard_restarts[num_restarts].node;
-    saveptr = wildcard_restarts[num_restarts].saveptr;
-    path_token = strtok_r(NULL, "/", &saveptr);
+    rest_path = wildcard_restarts[num_restarts].saveptr;
   }
 
   if (subscribers) {
     *subscribers = submask;
   }
 
-out_free_path:
-  free(dup_path);
-
+out:
   return rc;
 }
 
-int subtree_node_init(struct subtree_node *node, const char *path_component) {
+int subtree_node_init(struct subtree_node *node, char *path_component) {
   memset(node, 0, sizeof(struct subtree_node));
 
-  if (path_component) {
-    node->path_component = strdup(path_component);
-  }
+  node->path_component = path_component;
 
   return 0;
 }
@@ -154,10 +174,12 @@ void subtree_node_free(struct subtree_node *node) {
   free(node->children.nodes);
 }
 
+
+
 struct subtree_node *subtree_node_find_by_path(struct subtree_node *node, const char *path_component) {
   for (uint32_t i = 0; i < node->children.used; i++) {
     struct subtree_node *child = &node->children.nodes[i];
-    if (strcmp(path_component, child->path_component) == 0) {
+    if (strcmpdelim(child->path_component, path_component, '/') == 0) {
       return child;
     }
   }
@@ -185,7 +207,10 @@ int subtree_node_list_add_node(struct subtree_node_list *list, const char *path_
   struct subtree_node *node = &list->nodes[list->used];
   list->used++;
 
-  subtree_node_init(node, path_component);
+  char *delim = strchr(path_component, '/');
+  size_t n = delim ? delim - path_component : strlen(path_component);
+
+  subtree_node_init(node, strndup(path_component, n));
 
   if (new_node) {
     *new_node = node;
