@@ -64,6 +64,11 @@ function(add_nala_tests)
         PROPERTY CMAKE_CONFIGURE_DEPENDS ${source})
     endif()
 
+    cmake_path(GET source FILENAME source_file)
+    if(${source_file} STREQUAL "nala_mocks.c")
+      continue()
+    endif()
+
     file(READ "${source}" contents)
     string(REGEX MATCHALL "${nala_test_type_regex} *\\(([A-Za-z_0-9 ,]+)\\)"
                  found_tests "${contents}")
@@ -109,6 +114,9 @@ function(add_nala_target)
   target_include_directories(${ARGS_TARGET}
                              PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/nala)
   target_link_libraries(${ARGS_TARGET} ${ARGS_TARGET_LIB})
+
+  target_compile_options(${ARGS_TARGET} PRIVATE -fsanitize=address)
+  target_link_options(${ARGS_TARGET} PRIVATE -fsanitize=address)
 
   add_custom_command(
     OUTPUT nala/nala_mocks.c nala/nala_mocks.h

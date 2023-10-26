@@ -7,6 +7,9 @@
 
 struct subtree_node;
 
+/**
+ * List of nodes allocated from free store
+ */
 struct subtree_node_list {
   struct subtree_node *nodes;
   uint16_t allocated;
@@ -30,20 +33,35 @@ struct subtree_node {
   uint64_t wildcard_subscribed_mask;
 };
 
+struct subtree_travesal_entry;
+
+/**
+ *
+ */
+struct subscription_tree_traversal_ctx {
+  uint16_t stack_allocated;
+  uint16_t stack_used;
+  struct subtree_travesal_entry *stack;
+};
+
+/**
+ * The main subscription tree
+ *
+ * @TODO: More docs!
+ */
 struct subscription_tree {
   struct subtree_node root;
+
+  uint16_t max_tree_depth;
+
+  struct subscription_tree_traversal_ctx traverse_ctx;
 };
 
 int subscription_tree_init(struct subscription_tree *tree);
 void subscription_tree_free(struct subscription_tree *tree);
 int subscription_tree_subscribe(struct subscription_tree *tree, const char *path, uint8_t subscriber);
+int subscription_tree_unsubscribe(struct subscription_tree *tree, const char *path, uint8_t subscriber);
+int subscription_tree_purge(struct subscription_tree *tree, uint8_t subscriber);
 int subscription_tree_collect_subscribers(struct subscription_tree *tree, const char *path, uint64_t *subscribers);
-
-int subtree_node_init(struct subtree_node *node, char *path_component);
-void subtree_node_free(struct subtree_node *node);
-struct subtree_node *subtree_node_find_by_path(struct subtree_node *node, const char *path_component);
-
-int subtree_node_list_add_node(struct subtree_node_list *list, const char *path_component,
-                               struct subtree_node **new_node);
 
 #endif  // LITE_BROKER_SUBTREE_H
